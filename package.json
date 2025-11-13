@@ -1,0 +1,20 @@
+{
+  "name": "dtarbitr-3.0",
+  "version": "3.0.0",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "rm -rf dist/ && tsc && node dist/index.js",
+    "test": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "*",
+    "dotenv": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "@types/ws": "*",
+    "typescript": "*",
+    "tsx": "*"
+  }
+}

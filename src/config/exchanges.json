@@ -1,0 +1,36 @@
+{
+  "GATEIO": {
+    "name": "Gate.io Futures",
+    "wsUrl": "wss://fx-ws.gateio.ws/v4/ws/usdt",
+    "enabled": true,
+    "pingIntervalMs": 30000,
+    "pingFormat": {
+      "request": { "time": "timestamp", "channel": "futures.ping" },
+      "response": { "channel": "futures.pong" }
+    }
+  },
+  "BYBIT": {
+    "name": "Bybit Futures",
+    "wsUrl": "wss://stream.bybit.com/v5/public/linear",
+    "enabled": true,
+    "pingIntervalMs": 30000,
+    "pingFormat": {
+      "request": { "op": "ping" },
+      "response": { "ret_msg": "pong" }
+    }
+  },
+  "OKX": {
+    "name": "OKX Futures",
+    "wsUrl": "wss://ws.okx.com:8443/ws/v5/public",
+    "enabled": true,
+    "pingIntervalMs": 30000,
+    "pingFormat": {
+      "request": { "op": "ping" },
+      "response": { "event": "pong" }
+    },
+    "subscribe": {
+      "op": "subscribe",
+      "args": [{ "channel": "books", "instId": "BTC-USDT" }]
+    }
+  }
+}
