@@ -1,45 +1,45 @@
+// src/exchanges/ExchangeFactory.ts
 import { BaseExchange } from "./BaseExchange";
+import { ConfigLoader } from "../config";
+import { Logger } from "../utils/Common";
 
 export class ExchangeFactory {
-  public static createExchange(config: any): BaseExchange {
+  static createExchanges(): BaseExchange[] {
+    const enabledExchanges = ConfigLoader.getEnabledExchanges();
+    Logger.info(`🎯 Активные биржи: ${enabledExchanges.join(", ")}`);
+
+    return enabledExchanges
+      .map((exchangeId) => {
+        const config = ConfigLoader.getExchangeConfig(exchangeId);
+        return config ? this.createExchange(config) : null;
+      })
+      .filter(Boolean) as BaseExchange[];
+  }
+
+  private static createExchange(config: any): BaseExchange {
     return new (class extends BaseExchange {
-      private pingFormat: any;
-      private subscribeConfig: any;
-
-      constructor() {
-        super(config.name, config.wsUrl);
-        this.pingFormat = config.pingFormat;
-        this.subscribeConfig = config.subscribe;
-      }
-
-      protected onReady(): void {
-        // УНИВЕРСАЛЬНАЯ ПОДПИСКА ДЛЯ БИРЖ, КОТОРЫЕ ТРЕБУЮТ ЕЕ
-        if (this.subscribeConfig) {
-          this.send(this.subscribeConfig);
-          console.log(`📡 ${this.name}: подписка отправлена`);
+      protected onMessage(data: any): void {
+        if (this.isPongMessage(data)) {
+          this.handlePong(data);
         }
       }
 
       protected isPongMessage(msg: any): boolean {
-        const pattern = this.pingFormat.response;
-        for (const [key, value] of Object.entries(pattern)) {
-          if (msg[key] !== value) return false;
+        const response = this.pingFormat.response;
+
+        if (typeof response === "string") {
+          return msg === response;
         }
-        return true;
-      }
 
-      protected sendPing(): void {
-        this.pingTime = Date.now();
-        const request = { ...this.pingFormat.request };
-
-        for (const [key, value] of Object.entries(request)) {
-          if (value === "timestamp") {
-            request[key] = Math.floor(this.pingTime / 1000);
+        if (typeof response === "object") {
+          for (const [key, value] of Object.entries(response)) {
+            if (msg[key] !== value) return false;
           }
+          return true;
         }
 
-        this.send(request);
+        return false;
       }
-    })();
+    })(config.name, config.wsUrl, config.pingIntervalMs, config.pingFormat);
   }
 }

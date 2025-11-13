@@ -7,30 +7,47 @@
     "pingFormat": {
       "request": { "time": "timestamp", "channel": "futures.ping" },
       "response": { "channel": "futures.pong" }
-    }
+    },
+    "messageHandlers": [
+      {
+        "type": "pong",
+        "match": { "channel": "futures.pong" },
+        "action": "handlePong"
+      }
+    ]
   },
   "BYBIT": {
     "name": "Bybit Futures",
     "wsUrl": "wss://stream.bybit.com/v5/public/linear",
     "enabled": true,
-    "pingIntervalMs": 30000,
+    "pingIntervalMs": 20000,
     "pingFormat": {
       "request": { "op": "ping" },
-      "response": { "ret_msg": "pong" }
-    }
+      "response": { "op": "pong" }
+    },
+    "messageHandlers": [
+      {
+        "type": "pong",
+        "match": { "op": "pong" },
+        "action": "handlePong"
+      }
+    ]
   },
   "OKX": {
     "name": "OKX Futures",
     "wsUrl": "wss://ws.okx.com:8443/ws/v5/public",
     "enabled": true,
-    "pingIntervalMs": 30000,
+    "pingIntervalMs": 25000,
     "pingFormat": {
-      "request": { "op": "ping" },
-      "response": { "event": "pong" }
+      "request": "ping",
+      "response": "pong"
     },
-    "subscribe": {
-      "op": "subscribe",
-      "args": [{ "channel": "books", "instId": "BTC-USDT" }]
-    }
+    "messageHandlers": [
+      {
+        "type": "pong",
+        "match": "pong",
+        "action": "handlePong"
+      }
+    ]
   }
 }

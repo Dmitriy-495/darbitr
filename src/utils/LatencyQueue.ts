@@ -1,40 +1,37 @@
-/**
- * @file src/utils/LatencyQueue.ts
- * @path ./src/utils/LatencyQueue.ts
- * @brief Очередь для хранения и расчета задержек
- * @version 3.0.0
- */
-
+// src/utils/LatencyQueue.ts
 export class LatencyQueue {
   private queue: number[] = [];
-  private maxSize: number;
+  private readonly maxSize: number;
 
   constructor(maxSize: number = 10) {
     this.maxSize = maxSize;
   }
 
-  public add(latency: number): void {
+  addLatency(latency: number): void {
     this.queue.push(latency);
+
+    // 🔄 УДАЛЯЕМ СТАРЫЕ ЗНАЧЕНИЯ ДЛЯ МИНИМИЗАЦИИ ПАМЯТИ
     if (this.queue.length > this.maxSize) {
       this.queue.shift();
     }
   }
 
-  public getAverage(): number {
+  getAverage(): number {
     if (this.queue.length === 0) return 0;
-    const sum = this.queue.reduce((a, b) => a + b, 0);
-    return sum / this.queue.length;
+
+    const sum = this.queue.reduce((acc, latency) => acc + latency, 0);
+    return Number((sum / this.queue.length).toFixed(1));
   }
 
-  public getSize(): number {
+  getLast(): number {
+    return this.queue[this.queue.length - 1] || 0;
+  }
+
+  getCount(): number {
     return this.queue.length;
   }
 
-  public clear(): void {
+  clear(): void {
     this.queue = [];
-  }
-
-  public getValues(): number[] {
-    return [...this.queue];
   }
 }
