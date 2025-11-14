@@ -1,9 +1,8 @@
 // src/utils/WebSocketManager.ts
+import WebSocket from "ws";
 
 export class WebSocketManager {
   private ws: WebSocket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
 
   constructor(
     private url: string,
@@ -17,40 +16,45 @@ export class WebSocketManager {
       try {
         this.ws = new WebSocket(this.url);
 
-        this.ws.onopen = () => {
-          this.reconnectAttempts = 0;
+        this.ws.on("open", () => {
           this.onConnected();
           resolve();
-        };
+        });
 
-        this.ws.onmessage = (event) => {
-          this.onMessage(JSON.parse(event.data.toString()));
-        };
+        this.ws.on("message", (data: Buffer) => {
+          const messageString = data.toString();
 
-        this.ws.onclose = () => {
-          this.handleReconnect();
-        };
+          if (
+            messageString.trim().startsWith("{") ||
+            messageString.trim().startsWith("[")
+          ) {
+            try {
+              const parsed = JSON.parse(messageString);
+              this.onMessage(parsed);
+            } catch {
+              this.onMessage(messageString);
+            }
+          } else {
+            this.onMessage(messageString);
+          }
+        });
 
-        this.ws.onerror = (error) => {
+        this.ws.on("close", () => {});
+
+        this.ws.on("error", (error) => {
           this.onError(error);
           reject(error);
-        };
+        });
       } catch (error) {
         reject(error);
       }
     });
   }
 
-  private handleReconnect(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
-    }
-  }
-
   send(data: any): void {
     if (this.ws) {
-      this.ws.send(JSON.stringify(data));
+      const message = typeof data === "string" ? data : JSON.stringify(data);
+      this.ws.send(message);
     }
   }
 

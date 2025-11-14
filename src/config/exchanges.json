@@ -3,14 +3,16 @@
     "name": "Gate.io Futures",
     "wsUrl": "wss://fx-ws.gateio.ws/v4/ws/usdt",
     "enabled": true,
-    "pingIntervalMs": 30000,
-    "pingFormat": {
-      "request": { "time": "timestamp", "channel": "futures.ping" },
-      "response": { "channel": "futures.pong" }
+    "connection": {
+      "pingIntervalMs": 30000,
+      "pingFormat": {
+        "request": { "time": "timestamp", "channel": "futures.ping" },
+        "response": { "channel": "futures.pong" }
+      }
     },
-    "messageHandlers": [
+    "subscriptions": [
       {
-        "type": "pong",
+        "channel": "pong",
         "match": { "channel": "futures.pong" },
         "action": "handlePong"
       }
@@ -20,14 +22,16 @@
     "name": "Bybit Futures",
     "wsUrl": "wss://stream.bybit.com/v5/public/linear",
     "enabled": true,
-    "pingIntervalMs": 20000,
-    "pingFormat": {
-      "request": { "op": "ping" },
-      "response": { "op": "pong" }
+    "connection": {
+      "pingIntervalMs": 20000,
+      "pingFormat": {
+        "request": { "op": "ping" },
+        "response": { "op": "pong" }
+      }
     },
-    "messageHandlers": [
+    "subscriptions": [
       {
-        "type": "pong",
+        "channel": "pong",
         "match": { "op": "pong" },
         "action": "handlePong"
       }
@@ -37,14 +41,16 @@
     "name": "OKX Futures",
     "wsUrl": "wss://ws.okx.com:8443/ws/v5/public",
     "enabled": true,
-    "pingIntervalMs": 25000,
-    "pingFormat": {
-      "request": "ping",
-      "response": "pong"
+    "connection": {
+      "pingIntervalMs": 25000,
+      "pingFormat": {
+        "request": "ping",
+        "response": "pong"
+      }
     },
-    "messageHandlers": [
+    "subscriptions": [
       {
-        "type": "pong",
+        "channel": "pong",
         "match": "pong",
         "action": "handlePong"
       }

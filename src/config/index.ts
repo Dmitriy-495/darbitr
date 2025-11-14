@@ -1,15 +1,27 @@
 // src/config/index.ts
 import exchangesConfig from "./exchanges.json";
 
-export interface ExchangeConfig {
-  name: string;
-  wsUrl: string;
-  enabled: boolean;
+export interface Subscription {
+  channel: string;
+  match: any;
+  action: string;
+}
+
+export interface ConnectionConfig {
   pingIntervalMs: number;
   pingFormat: {
     request: any;
     response: any;
   };
+  initialMessages?: any[];
+  subscriptions?: Subscription[];
+}
+
+export interface ExchangeConfig {
+  name: string;
+  wsUrl: string;
+  enabled: boolean;
+  connection: ConnectionConfig; // 🎯 УНИФИЦИРОВАННАЯ СТРУКТУРА
 }
 
 export class ConfigLoader {

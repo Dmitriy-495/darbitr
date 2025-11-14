@@ -11,35 +11,14 @@ export class ExchangeFactory {
     return enabledExchanges
       .map((exchangeId) => {
         const config = ConfigLoader.getExchangeConfig(exchangeId);
-        return config ? this.createExchange(config) : null;
+        return config
+          ? new BaseExchange(
+              config.name,
+              config.wsUrl,
+              config.connection // 🎯 ВСЯ КОНФИГУРАЦИЯ В ОДНОМ ОБЪЕКТЕ
+            )
+          : null;
       })
       .filter(Boolean) as BaseExchange[];
-  }
-
-  private static createExchange(config: any): BaseExchange {
-    return new (class extends BaseExchange {
-      protected onMessage(data: any): void {
-        if (this.isPongMessage(data)) {
-          this.handlePong(data);
-        }
-      }
-
-      protected isPongMessage(msg: any): boolean {
-        const response = this.pingFormat.response;
-
-        if (typeof response === "string") {
-          return msg === response;
-        }
-
-        if (typeof response === "object") {
-          for (const [key, value] of Object.entries(response)) {
-            if (msg[key] !== value) return false;
-          }
-          return true;
-        }
-
-        return false;
-      }
-    })(config.name, config.wsUrl, config.pingIntervalMs, config.pingFormat);
   }
 }
