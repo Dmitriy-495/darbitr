@@ -1,0 +1,21 @@
+{
+  "symbol": "BTCUSDT",
+  "name": "Bitcoin / Tether",
+  "base": "BTC",
+  "quote": "USDT",
+  "enabled": true,
+  "arbitrage": {
+    "minSpread": 0.001,
+    "minProfit": 0.0005,
+    "maxExposure": 1000
+  },
+  "subscription": {
+    "channel": "orderbook.1.BTCUSDT",
+    "bidPath": "data.b.0.0",
+    "askPath": "data.a.0.0"
+  },
+  "monitoring": {
+    "color": "GREEN",
+    "precision": 2
+  }
+}
