@@ -1,0 +1,31 @@
+{
+  "name": "OKX Futures",
+  "wsUrl": "wss://ws.okx.com:8443/ws/v5/public",
+  "enabled": true,
+  "connection": {
+    "pingIntervalMs": 25000,
+    "pingFormat": {
+      "request": "ping",
+      "response": "pong"
+    }
+  },
+  "connectionConfirmPatterns": [{ "event": "subscribe" }],
+  "subscribeMessages": [
+    {
+      "op": "subscribe",
+      "args": [
+        {
+          "channel": "books",
+          "instId": "BTC-USDT"
+        }
+      ]
+    }
+  ],
+  "subscriptions": [
+    {
+      "channel": "orderbook",
+      "match": { "arg": { "channel": "books" } },
+      "action": "handleOrderbook"
+    }
+  ]
+}

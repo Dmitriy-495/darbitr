@@ -1,0 +1,28 @@
+{
+  "name": "Gate.io Futures",
+  "wsUrl": "wss://fx-ws.gateio.ws/v4/ws/usdt",
+  "enabled": true,
+  "connection": {
+    "pingIntervalMs": 30000,
+    "pingFormat": {
+      "request": { "time": "timestamp", "channel": "futures.ping" },
+      "response": { "channel": "futures.pong" }
+    }
+  },
+  "connectionConfirmPatterns": [{ "channel": "futures.pong" }],
+  "subscribeMessages": [
+    {
+      "time": "timestamp",
+      "channel": "futures.order_book",
+      "event": "subscribe",
+      "payload": ["BTC_USDT", "20", "100ms"]
+    }
+  ],
+  "subscriptions": [
+    {
+      "channel": "orderbook",
+      "match": { "channel": "futures.order_book" },
+      "action": "handleOrderbook"
+    }
+  ]
+}

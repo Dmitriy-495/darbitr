@@ -1,178 +1,116 @@
 // src/exchanges/BaseExchange.ts
 
 /**
- * ⚡ БАЗОВЫЙ КЛАСС ДЛЯ ВСЕХ БИРЖ
- * ДЕВИЗ: "МИНИМАЛИЗМ - ЭТО СКОРОСТЬ!"
+ * ⚡ УНИВЕСАЛЬНЫЙ КЛАСС БИРЖИ
+ * ДЕВИЗ: "ПРОЩЕ! ЭФФЕКТИВНЕЙ! БЫСТРЕЕ!"
  */
 
-export abstract class BaseExchange {
+import WebSocket from "ws";
+
+export class BaseExchange {
   protected ws: WebSocket | null = null;
-  protected isConnected: boolean = false; // Флаг успешного подключения
-  protected connectionChecked: boolean = false; // Флаг проверки подключения
-  protected lastPingTime: number = 0; // Время последнего ping
-  protected latency: number = 0; // Последняя задержка
-  protected reconnectAttempts: number = 0; // Счетчик переподключений
-  protected maxReconnectAttempts: number = 5; // Максимум переподключений
+  protected isConnected: boolean = false;
+  protected lastPingTime: number = 0;
+  protected latency: number = 0;
+  private orderbookUpdateCount: number = 0;
+  private lastOrderbookData: any = null;
 
   /**
-   * 🏗️ КОНСТРУКТОР - ИНИЦИАЛИЗАЦИЯ БИРЖИ
+   * 🏗️ КОНСТРУКТОР - ПРОСТО И БЫСТРО
    */
   constructor(protected config: any) {
-    console.log(`🎯 ИНИЦИАЛИЗИРУЕМ ${config.name}...`);
+    console.log(`🎯 ${config.name} - ИНИЦИАЛИЗИРОВАНА`);
   }
 
   /**
-   * 🔌 ПОДКЛЮЧЕНИЕ К БИРЖЕ
+   * 🔌 ПОДКЛЮЧЕНИЕ - ПРОЩЕ НЕКУДА
    */
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      try {
-        console.log(`🔌 ПОДКЛЮЧАЕМСЯ К ${this.config.name}...`);
+      console.log(`🔌 ${this.config.name} - ПОДКЛЮЧЕНИЕ...`);
 
-        this.ws = new WebSocket(this.config.wsUrl);
+      this.ws = new WebSocket(this.config.wsUrl);
 
-        // 📡 ОБРАБОТЧИК ОТКРЫТИЯ СОЕДИНЕНИЯ
-        this.ws.onopen = () => {
-          console.log(`✅ WebSocket ${this.config.name} ОТКРЫТ`);
-          // Ждем подтверждения от биржи в onMessage
-        };
+      this.ws.onopen = () => {
+        console.log(`✅ ${this.config.name} - WebSocket ОТКРЫТ`);
+        this.handleConnected();
+        resolve();
+      };
 
-        // 📨 ОБРАБОТЧИК ВХОДЯЩИХ СООБЩЕНИЙ
-        this.ws.onmessage = (event) => {
-          try {
-            let data: any;
+      this.ws.onmessage = (event) => {
+        try {
+          const data =
+            typeof event.data === "string"
+              ? JSON.parse(event.data)
+              : event.data;
+          this.handleMessage(data);
+        } catch (error) {
+          console.error(`❌ ${this.config.name} - ОШИБКА ПАРСИНГА:`, error);
+        }
+      };
 
-            // ПАРСИМ JSON ИЛИ СТРОКУ
-            if (typeof event.data === "string") {
-              data = event.data === "pong" ? "pong" : JSON.parse(event.data);
-            } else {
-              data = event.data;
-            }
-
-            this.onMessage(data);
-          } catch (error) {
-            console.error(`❌ ОШИБКА ПАРСИНГА СООБЩЕНИЯ:`, error);
-          }
-        };
-
-        // 🔴 ОБРАБОТЧИК ОШИБОК
-        this.ws.onerror = (error) => {
-          console.error(`❌ ОШИБКА ${this.config.name}:`, error);
-          reject(error);
-        };
-
-        // 📴 ОБРАБОТЧИК ЗАКРЫТИЯ СОЕДИНЕНИЯ
-        this.ws.onclose = () => {
-          console.log(`🔴 СОЕДИНЕНИЕ ${this.config.name} ЗАКРЫТО`);
-          this.handleReconnect();
-        };
-
-        // ТАЙМАУТ НА ПОДКЛЮЧЕНИЕ
-        setTimeout(() => {
-          if (!this.isConnected) {
-            reject(new Error(`ТАЙМАУТ ПОДКЛЮЧЕНИЯ К ${this.config.name}`));
-          }
-        }, 10000);
-      } catch (error) {
+      this.ws.onerror = (error) => {
+        console.error(`❌ ${this.config.name} - ОШИБКА:`, error);
         reject(error);
-      }
+      };
+
+      this.ws.onclose = () => {
+        console.log(`🔴 ${this.config.name} - СОЕДИНЕНИЕ ЗАКРЫТО`);
+        this.isConnected = false;
+      };
+
+      // ТАЙМАУТ 10 СЕКУНД
+      setTimeout(
+        () => !this.isConnected && reject(new Error("ТАЙМАУТ")),
+        10000
+      );
     });
   }
 
   /**
-   * ✅ ВЫЗЫВАЕТСЯ КОГДА БИРЖА ПОДТВЕРДИЛА ПОДКЛЮЧЕНИЕ
+   * ✅ ОБРАБОТКА УСПЕШНОГО ПОДКЛЮЧЕНИЯ
    */
-  protected onConnected(): void {
-    console.log(`🎉 ${this.config.name} ПОДКЛЮЧЕНА И ГОТОВА К БОЮ!`);
+  private handleConnected(): void {
+    console.log(`🎉 ${this.config.name} - ПОДКЛЮЧЕНА К БОЮ!`);
     this.isConnected = true;
-    this.connectionChecked = true;
-    this.reconnectAttempts = 0; // СБРАСЫВАЕМ СЧЕТЧИК ПЕРЕПОДКЛЮЧЕНИЙ
 
-    // ЗАПУСКАЕМ PING-PONG ЦИКЛ ЧЕРЕЗ 1 СЕКУНДУ
+    // ЗАПУСКАЕМ PING-PONG И ПОДПИСКИ
     setTimeout(() => {
       this.startPingPong();
+      this.sendSubscriptions();
     }, 1000);
   }
 
   /**
-   * 🔄 ОБРАБОТКА ПЕРЕПОДКЛЮЧЕНИЯ
+   * 📨 ОБРАБОТКА ВСЕХ СООБЩЕНИЙ - ЭФФЕКТИВНО
    */
-  private handleReconnect(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(
-        `🔄 ПЕРЕПОДКЛЮЧЕНИЕ ${this.config.name} (ПОПЫТКА ${this.reconnectAttempts})...`
-      );
-
-      setTimeout(() => {
-        this.connect();
-      }, 2000 * this.reconnectAttempts); // УВЕЛИЧИВАЕМ ЗАДЕРЖКУ
-    } else {
-      console.error(
-        `💥 ПРЕВЫШЕН ЛИМИТ ПЕРЕПОДКЛЮЧЕНИЙ ДЛЯ ${this.config.name}`
-      );
-    }
-  }
-
-  /**
-   * 📨 ГЛАВНЫЙ ОБРАБОТЧИК ВСЕХ СООБЩЕНИЙ ОТ БИРЖИ
-   */
-  protected onMessage(data: any): void {
-    // ЕСЛИ ЕЩЕ НЕ ПОДТВЕРЖДЕНО ПОДКЛЮЧЕНИЕ - ПРОВЕРЯЕМ
-    if (!this.connectionChecked) {
-      if (this.isConnectionConfirm(data)) {
-        this.onConnected();
-        return;
-      }
-    }
-
-    // ЕСЛИ ПОДКЛЮЧЕНИЕ ПОДТВЕРЖДЕНО - ПРОВЕРЯЕМ PONG
-    if (this.isConnected && this.isPong(data)) {
+  private handleMessage(data: any): void {
+    // ПРОВЕРЯЕМ PONG
+    if (this.isPong(data)) {
       this.handlePong(data);
       return;
     }
 
-    // ВСЕ ОСТАЛЬНЫЕ СООБЩЕНИЯ - ДЛЯ БУДУЩЕГО ФУНКЦИОНАЛА
-    this.handleOtherMessages(data);
+    // ПРОВЕРЯЕМ ПОДТВЕРЖДЕНИЕ ПОДПИСКИ
+    if (this.isSubscriptionConfirm(data)) {
+      console.log(`✅ ${this.config.name} - ПОДПИСКА ПОДТВЕРЖДЕНА`);
+      return;
+    }
+
+    // ОБРАБАТЫВАЕМ ДАННЫЕ
+    this.handleData(data);
   }
 
   /**
-   * 🔍 ПРОВЕРЯЕТ - ЭТО ПОДТВЕРЖДЕНИЕ ПОДКЛЮЧЕНИЯ ОТ БИРЖИ?
-   */
-  private isConnectionConfirm(data: any): boolean {
-    // BYBIT: {"success":true,"ret_msg":"...","conn_id":"..."}
-    if (data.success === true) {
-      console.log(`📨 ${this.config.name} ПРИСЛАЛА ПОДТВЕРЖДЕНИЕ ПОДКЛЮЧЕНИЯ`);
-      return true;
-    }
-
-    // OKX: {"event":"subscribe","channel":"..."}
-    if (data.event === "subscribe") {
-      console.log(`📨 ${this.config.name} ПОДТВЕРДИЛА ПОДПИСКУ`);
-      return true;
-    }
-
-    // GATE.IO: ПЕРВЫЙ PONG ТАКЖЕ ПОДТВЕРЖДАЕТ ПОДКЛЮЧЕНИЕ
-    if (this.isPong(data)) {
-      console.log(`📨 ${this.config.name} ПРИСЛАЛА PONG КАК ПОДТВЕРЖДЕНИЕ`);
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * 🎯 ОПРЕДЕЛЯЕТ - ЭТО PONG ОТВЕТ?
+   * 🎯 ПРОВЕРКА PONG - БЫСТРО
    */
   private isPong(data: any): boolean {
     const pongConfig = this.config.connection.pingFormat.response;
 
-    // ДЛЯ OKX: "pong" - ПРОСТАЯ СТРОКА
     if (typeof pongConfig === "string") {
       return data === pongConfig;
     }
 
-    // ДЛЯ BYBIT И GATE.IO: СЛОЖНЫЙ JSON ОБЪЕКТ
     if (typeof pongConfig === "object") {
       return Object.keys(pongConfig).every(
         (key) => data[key] === pongConfig[key]
@@ -183,40 +121,42 @@ export abstract class BaseExchange {
   }
 
   /**
-   * 🚀 ЗАПУСКАЕТ PING-PONG ЦИКЛ
+   * 📨 ПРОВЕРКА ПОДТВЕРЖДЕНИЯ ПОДПИСКИ
+   */
+  private isSubscriptionConfirm(data: any): boolean {
+    return data.event === "subscribe" || data.success === true;
+  }
+
+  /**
+   * 🚀 ЗАПУСК PING-PONG - ЭФФЕКТИВНО
    */
   private startPingPong(): void {
     if (!this.isConnected) return;
 
-    console.log(`🔁 ЗАПУСК PING-PONG ДЛЯ ${this.config.name}`);
+    console.log(`🔁 ${this.config.name} - PING-PONG ЗАПУЩЕН`);
 
-    // НЕМЕДЛЕННО ОТПРАВЛЯЕМ ПЕРВЫЙ PING
+    // ПЕРВЫЙ PING
     this.sendPing();
 
-    // ЗАПУСКАЕМ ИНТЕРВАЛ
-    setInterval(() => {
-      if (this.isConnected) {
-        this.sendPing();
-      }
-    }, this.config.connection.pingIntervalMs);
+    // ИНТЕРВАЛ ИЗ КОНФИГА
+    setInterval(
+      () => this.isConnected && this.sendPing(),
+      this.config.connection.pingIntervalMs
+    );
   }
 
   /**
-   * 📤 ОТПРАВЛЯЕТ PING ЗАПРОС
+   * 📤 ОТПРАВКА PING - ПРОСТО
    */
-  protected sendPing(): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log(`⚠️ WebSocket ${this.config.name} НЕ ГОТОВ ДЛЯ PING`);
-      return;
-    }
+  private sendPing(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
     const pingMessage = this.config.connection.pingFormat.request;
 
-    // ОТПРАВЛЯЕМ PING В ЗАВИСИМОСТИ ОТ ФОРМАТА
     if (typeof pingMessage === "string") {
       this.ws.send(pingMessage);
     } else {
-      // ДЛЯ JSON С ЗАМЕНОЙ timestamp
+      // ЗАМЕНА timestamp
       const message = { ...pingMessage };
       if (message.time === "timestamp") {
         message.time = Math.floor(Date.now() / 1000);
@@ -225,50 +165,172 @@ export abstract class BaseExchange {
     }
 
     this.lastPingTime = Date.now();
-    console.log(`📤 ${this.config.name} PING ОТПРАВЛЕН`);
+    console.log(`📤 ${this.config.name} - PING ОТПРАВЛЕН`);
 
-    // ТАЙМАУТ НА ОЖИДАНИЕ PONG
+    // ТАЙМАУТ 5 СЕКУНД
     setTimeout(() => {
       if (this.lastPingTime > 0) {
-        console.log(`⏰ ${this.config.name} PONG ТАЙМАУТ - НЕТ ОТВЕТА`);
+        console.log(`⏰ ${this.config.name} - PONG ТАЙМАУТ`);
         this.lastPingTime = 0;
       }
     }, 5000);
   }
 
   /**
-   * 📥 ОБРАБОТКА PONG ОТВЕТА
+   * 📥 ОБРАБОТКА PONG ОТВЕТА - С ФРАЗОЙ "ОТКЛИК"
    */
-  protected handlePong(data: any): void {
+  private handlePong(data: any): void {
     const latency = Date.now() - this.lastPingTime;
     this.latency = latency;
     this.lastPingTime = 0;
 
-    console.log(`📥 ${this.config.name} PONG ПОЛУЧЕН! ЗАДЕРЖКА: ${latency}ms`);
+    console.log(`📥 ${this.config.name} PONG! отклик: ${latency}ms`);
   }
 
   /**
-   * 📊 ПОЛУЧЕНИЕ СТАТИСТИКИ БИРЖИ
+   * 📨 ОТПРАВКА ПОДПИСОК - ПРОЩЕ НЕКУДА
+   */
+  private sendSubscriptions(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    if (this.config.subscribeMessages) {
+      this.config.subscribeMessages.forEach((message: any) => {
+        const processed = this.processMessage(message);
+        this.ws!.send(JSON.stringify(processed));
+        console.log(`📨 ${this.config.name} - ПОДПИСКА ОТПРАВЛЕНА`);
+      });
+    }
+  }
+
+  /**
+   * 🛠️ ОБРАБОТКА ШАБЛОНОВ СООБЩЕНИЙ
+   */
+  private processMessage(message: any): any {
+    const processed = JSON.parse(JSON.stringify(message));
+
+    for (const key in processed) {
+      if (processed[key] === "timestamp") {
+        processed[key] = Math.floor(Date.now() / 1000);
+      }
+    }
+
+    return processed;
+  }
+
+  /**
+   * 📊 ОБРАБОТКА ДАННЫХ - С ФИЛЬТРАЦИЕЙ СТАКАНА
+   */
+  private handleData(data: any): void {
+    // ОБРАБАТЫВАЕМ ORDERBOOK
+    if (
+      data.channel?.includes("order_book") ||
+      data.topic?.includes("orderbook")
+    ) {
+      this.handleOrderbookWithFilter(data);
+    }
+  }
+
+  /**
+   * 📊 ФИЛЬТРАЦИЯ СТАКАНА - КАЖДЫЕ 20 ОБНОВЛЕНИЙ + BEST BID/ASK
+   */
+  private handleOrderbookWithFilter(data: any): void {
+    this.orderbookUpdateCount++;
+
+    // ПРОПУСКАЕМ КАЖДЫЕ 19 ОБНОВЛЕНИЙ
+    if (this.orderbookUpdateCount % 20 !== 0) {
+      return;
+    }
+
+    // СОХРАНЯЕМ ПОСЛЕДНИЕ ДАННЫЕ
+    this.lastOrderbookData = data;
+
+    // ИЗВЛЕКАЕМ BEST BID/ASK
+    const bestBidAsk = this.extractBestBidAsk(data);
+
+    if (bestBidAsk) {
+      console.log(
+        `📊 ${this.config.name} BEST: BID ${bestBidAsk.bid} | ASK ${bestBidAsk.ask} | спред: ${bestBidAsk.spread}`
+      );
+    }
+  }
+
+  /**
+   * 🎯 ИЗВЛЕЧЕНИЕ BEST BID/ASK ИЗ РАЗНЫХ ФОРМАТОВ БИРЖ
+   */
+  private extractBestBidAsk(
+    data: any
+  ): { bid: number; ask: number; spread: number } | null {
+    try {
+      let bestBid: number = 0;
+      let bestAsk: number = 0;
+
+      // BYBIT ФОРМАТ
+      if (data.type === "snapshot" && data.data) {
+        const bids = data.data.b || data.data.bids || [];
+        const asks = data.data.a || data.data.asks || [];
+
+        if (bids.length > 0) bestBid = parseFloat(bids[0][0]);
+        if (asks.length > 0) bestAsk = parseFloat(asks[0][0]);
+      }
+      // GATE.IO ФОРМАТ
+      else if (data.result && Array.isArray(data.result)) {
+        const orderbook = data.result[0];
+        if (orderbook && orderbook.bids && orderbook.asks) {
+          if (orderbook.bids.length > 0)
+            bestBid = parseFloat(orderbook.bids[0][0]);
+          if (orderbook.asks.length > 0)
+            bestAsk = parseFloat(orderbook.asks[0][0]);
+        }
+      }
+      // OKX ФОРМАТ
+      else if (data.data && Array.isArray(data.data)) {
+        const orderbook = data.data[0];
+        if (orderbook && orderbook.bids && orderbook.asks) {
+          if (orderbook.bids.length > 0)
+            bestBid = parseFloat(orderbook.bids[0][0]);
+          if (orderbook.asks.length > 0)
+            bestAsk = parseFloat(orderbook.asks[0][0]);
+        }
+      }
+
+      // ПРОВЕРЯЕМ ЧТО ДАННЫЕ ВАЛИДНЫ
+      if (bestBid > 0 && bestAsk > 0 && bestAsk > bestBid) {
+        const spread = bestAsk - bestBid;
+        return { bid: bestBid, ask: bestAsk, spread };
+      }
+    } catch (error) {
+      console.error(
+        `❌ ${this.config.name} - ОШИБКА ИЗВЛЕЧЕНИЯ BID/ASK:`,
+        error
+      );
+    }
+
+    return null;
+  }
+
+  /**
+   * 📈 СТАТИСТИКА - ТЕПЕРЬ С BEST BID/ASK
    */
   getStats(): any {
+    let bestInfo = "";
+
+    if (this.lastOrderbookData) {
+      const bestBidAsk = this.extractBestBidAsk(this.lastOrderbookData);
+      if (bestBidAsk) {
+        bestInfo = ` | BID:${bestBidAsk.bid} ASK:${bestBidAsk.ask}`;
+      }
+    }
+
     return {
       name: this.config.name,
       connected: this.isConnected,
       latency: this.latency,
-      reconnectAttempts: this.reconnectAttempts,
+      bestInfo: bestInfo,
     };
   }
 
   /**
-   * 🔧 ОБРАБОТКА ДРУГИХ СООБЩЕНИЙ (ДЛЯ НАСЛЕДНИКОВ)
-   */
-  protected handleOtherMessages(data: any): void {
-    // ПЕРЕОПРЕДЕЛЯЕТСЯ В КОНКРЕТНЫХ БИРЖАХ
-    // console.log(`📨 ${this.config.name} ДРУГОЕ СООБЩЕНИЕ:`, data);
-  }
-
-  /**
-   * 📴 ОТКЛЮЧЕНИЕ ОТ БИРЖИ
+   * 📴 ОТКЛЮЧЕНИЕ - ПРОСТО
    */
   disconnect(): void {
     if (this.ws) {
@@ -276,7 +338,6 @@ export abstract class BaseExchange {
       this.ws = null;
     }
     this.isConnected = false;
-    this.connectionChecked = false;
-    console.log(`🔴 ${this.config.name} ОТКЛЮЧЕНА`);
+    console.log(`🔴 ${this.config.name} - ОТКЛЮЧЕНА`);
   }
 }

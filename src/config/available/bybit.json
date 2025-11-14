@@ -1,0 +1,18 @@
+{
+  "name": "Bybit Futures",
+  "wsUrl": "wss://stream.bybit.com/v5/public/linear",
+  "enabled": true,
+  "connection": {
+    "pingIntervalMs": 20000,
+    "pingFormat": {
+      "request": { "op": "ping" },
+      "response": { "success": true, "ret_msg": "pong" }
+    }
+  },
+  "subscribeMessages": [
+    {
+      "op": "subscribe",
+      "args": ["orderbook.1.BTCUSDT"]
+    }
+  ]
+}
