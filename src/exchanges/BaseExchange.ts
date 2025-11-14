@@ -1,65 +1,64 @@
-// src/exchanges/BaseExchange.ts
+// src/exchanges/BaseExchange.ts - ПРАВИЛЬНЫЕ ЦВЕТА И МОНЕТА!
 
 /**
- * ⚡ УНИВЕСАЛЬНЫЙ КЛАСС БИРЖИ
- * ДЕВИЗ: "ПРОЩЕ! ЭФФЕКТИВНЕЙ! БЫСТРЕЕ!"
+ * ⚡ БАЗОВЫЙ КЛАСС БИРЖИ - ПРАВИЛЬНЫЕ ЦВЕТА И BTC/USDT!
+ * ДЕВИЗ: "СЕРЫЙ PONG! ОРАНЖЕВЫЙ DELTA! BTC/USDT!"
  */
 
 import WebSocket from "ws";
 
 export class BaseExchange {
-  protected ws: WebSocket | null = null;
-  protected isConnected: boolean = false;
-  protected lastPingTime: number = 0;
-  protected latency: number = 0;
-  private orderbookUpdateCount: number = 0;
-  private lastOrderbookData: any = null;
+  private ws: WebSocket | null = null;
+  private isConnected: boolean = false;
+  private lastPingTime: number = 0;
+  private lastBid: number = 0;
+  private lastAsk: number = 0;
 
-  /**
-   * 🏗️ КОНСТРУКТОР - ПРОСТО И БЫСТРО
-   */
-  constructor(protected config: any) {
-    console.log(`🎯 ${config.name} - ИНИЦИАЛИЗИРОВАНА`);
+  // ⚡ ПУТИ В ПАМЯТИ!
+  private bidPath: string[] = [];
+  private askPath: string[] = [];
+
+  // 🎨 ЦВЕТА ДЛЯ ЛОГОВ
+  private readonly colors = {
+    white: "\x1b[37m", // БЕЛЫЙ (основной текст)
+    gray: "\x1b[90m", // СЕРЫЙ (ping/pong)
+    delta: "\x1b[33m", // ОРАНЖЕВЫЙ (delta)
+    bid: "\x1b[32m", // ЗЕЛЕНЫЙ
+    ask: "\x1b[91m", // СВЕТЛО-КРАСНЫЙ
+    reset: "\x1b[0m", // СБРОС
+  };
+
+  constructor(private config: any) {
+    console.log(`🎯 ${config.name} - ГОТОВ`);
+
+    if (this.config.bidAskPaths) {
+      this.bidPath = this.config.bidAskPaths.bid.split(".");
+      this.askPath = this.config.bidAskPaths.ask.split(".");
+    }
   }
 
-  /**
-   * 🔌 ПОДКЛЮЧЕНИЕ - ПРОЩЕ НЕКУДА
-   */
   async connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      console.log(`🔌 ${this.config.name} - ПОДКЛЮЧЕНИЕ...`);
+    console.log(`🔌 ${this.config.name} - ПОДКЛЮЧЕНИЕ...`);
 
+    return new Promise((resolve, reject) => {
       this.ws = new WebSocket(this.config.wsUrl);
 
       this.ws.onopen = () => {
-        console.log(`✅ ${this.config.name} - WebSocket ОТКРЫТ`);
-        this.handleConnected();
+        this.isConnected = true;
+        console.log(`✅ ${this.config.name} - ПОДКЛЮЧЕНА`);
+        this.startEngine();
         resolve();
       };
 
       this.ws.onmessage = (event) => {
-        try {
-          const data =
-            typeof event.data === "string"
-              ? JSON.parse(event.data)
-              : event.data;
-          this.handleMessage(data);
-        } catch (error) {
-          console.error(`❌ ${this.config.name} - ОШИБКА ПАРСИНГА:`, error);
-        }
+        const data =
+          typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        this.processData(data);
       };
 
-      this.ws.onerror = (error) => {
-        console.error(`❌ ${this.config.name} - ОШИБКА:`, error);
-        reject(error);
-      };
+      this.ws.onerror = reject;
+      this.ws.onclose = () => (this.isConnected = false);
 
-      this.ws.onclose = () => {
-        console.log(`🔴 ${this.config.name} - СОЕДИНЕНИЕ ЗАКРЫТО`);
-        this.isConnected = false;
-      };
-
-      // ТАЙМАУТ 10 СЕКУНД
       setTimeout(
         () => !this.isConnected && reject(new Error("ТАЙМАУТ")),
         10000
@@ -67,276 +66,163 @@ export class BaseExchange {
     });
   }
 
-  /**
-   * ✅ ОБРАБОТКА УСПЕШНОГО ПОДКЛЮЧЕНИЯ
-   */
-  private handleConnected(): void {
-    console.log(`🎉 ${this.config.name} - ПОДКЛЮЧЕНА К БОЮ!`);
-    this.isConnected = true;
-
-    // ЗАПУСКАЕМ PING-PONG И ПОДПИСКИ
-    setTimeout(() => {
-      this.startPingPong();
-      this.sendSubscriptions();
-    }, 1000);
-  }
-
-  /**
-   * 📨 ОБРАБОТКА ВСЕХ СООБЩЕНИЙ - ЭФФЕКТИВНО
-   */
-  private handleMessage(data: any): void {
-    // ПРОВЕРЯЕМ PONG
-    if (this.isPong(data)) {
-      this.handlePong(data);
-      return;
+  private startEngine(): void {
+    // ПОДПИСКИ
+    if (this.config.subscribeMessages) {
+      this.config.subscribeMessages.forEach((msg: any) => {
+        this.ws!.send(JSON.stringify(this.processTimestamp(msg)));
+      });
     }
 
-    // ПРОВЕРЯЕМ ПОДТВЕРЖДЕНИЕ ПОДПИСКИ
-    if (this.isSubscriptionConfirm(data)) {
-      console.log(`✅ ${this.config.name} - ПОДПИСКА ПОДТВЕРЖДЕНА`);
-      return;
-    }
-
-    // ОБРАБАТЫВАЕМ ДАННЫЕ
-    this.handleData(data);
-  }
-
-  /**
-   * 🎯 ПРОВЕРКА PONG - БЫСТРО
-   */
-  private isPong(data: any): boolean {
-    const pongConfig = this.config.connection.pingFormat.response;
-
-    if (typeof pongConfig === "string") {
-      return data === pongConfig;
-    }
-
-    if (typeof pongConfig === "object") {
-      return Object.keys(pongConfig).every(
-        (key) => data[key] === pongConfig[key]
-      );
-    }
-
-    return false;
-  }
-
-  /**
-   * 📨 ПРОВЕРКА ПОДТВЕРЖДЕНИЯ ПОДПИСКИ
-   */
-  private isSubscriptionConfirm(data: any): boolean {
-    return data.event === "subscribe" || data.success === true;
-  }
-
-  /**
-   * 🚀 ЗАПУСК PING-PONG - ЭФФЕКТИВНО
-   */
-  private startPingPong(): void {
-    if (!this.isConnected) return;
-
-    console.log(`🔁 ${this.config.name} - PING-PONG ЗАПУЩЕН`);
-
-    // ПЕРВЫЙ PING
+    // PING-PONG КАЖДЫЕ 5 СЕКУНД!
     this.sendPing();
+    setInterval(() => this.isConnected && this.sendPing(), 5000);
+  }
 
-    // ИНТЕРВАЛ ИЗ КОНФИГА
-    setInterval(
-      () => this.isConnected && this.sendPing(),
-      this.config.connection.pingIntervalMs
-    );
+  private processData(data: any): void {
+    // PONG - ПРАВИЛЬНЫЕ ЦВЕТА И BTC/USDT!
+    if (this.isPong(data)) {
+      const pongTime = Date.now();
+      const pingTime = this.lastPingTime;
+      this.lastPingTime = 0;
+
+      // 🎨 ПРАВИЛЬНЫЕ ЦВЕТА И BTC/USDT!
+      const pingTimeStr = this.formatTime(pingTime);
+      const pongTimeStr = this.formatTime(pongTime);
+      const delta = pongTime - pingTime;
+
+      console.log(
+        `${this.colors.white}${this.config.name} | ` +
+          `${this.colors.gray}PING: ${pingTimeStr} | ` +
+          `${this.colors.gray}PONG: ${pongTimeStr} | ` +
+          `${this.colors.delta}DELTA: ${delta}ms | ` +
+          `${this.colors.bid}BTC/USDT BID: ${this.formatPrice(
+            this.lastBid
+          )} | ` +
+          `${this.colors.ask}BTC/USDT ASK: ${this.formatPrice(this.lastAsk)}` +
+          `${this.colors.reset}`
+      );
+      return;
+    }
+
+    // BEST BID/ASK - БЕЗ ЛОГОВ, ДАННЫЕ В ПАМЯТИ!
+    const prices = this.extractPrices(data);
+    if (prices) {
+      this.lastBid = prices.bid;
+      this.lastAsk = prices.ask;
+    }
   }
 
   /**
-   * 📤 ОТПРАВКА PING - ПРОСТО
+   * 🕒 ФОРМАТИРОВАНИЕ ВРЕМЕНИ ДЛЯ ЧЕЛОВЕКА
    */
+  private formatTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const seconds = date.getSeconds().toString().padStart(2, "0");
+    const milliseconds = date.getMilliseconds().toString().padStart(3, "0");
+    return `${hours}:${minutes}:${seconds}.${milliseconds}`;
+  }
+
+  /**
+   * 💰 ФОРМАТИРОВАНИЕ ЦЕНЫ С РАЗДЕЛИТЕЛЯМИ
+   */
+  private formatPrice(price: number): string {
+    if (price === 0) return "0.00";
+
+    // ДВА ЗНАКА ПОСЛЕ ЗАПЯТОЙ И РАЗДЕЛИТЕЛИ ТЫСЯЧ
+    return price.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  }
+
+  private extractPrices(data: any): { bid: number; ask: number } | null {
+    let bid: number = 0;
+    let ask: number = 0;
+
+    if (this.bidPath.length > 0 && this.askPath.length > 0) {
+      bid = this.getValueByPath(data, this.bidPath);
+      ask = this.getValueByPath(data, this.askPath);
+    } else {
+      bid = this.autoDetectBid(data);
+      ask = this.autoDetectAsk(data);
+    }
+
+    if (bid > 0 && ask > 0 && ask > bid) {
+      return { bid, ask };
+    }
+    return null;
+  }
+
+  private getValueByPath(obj: any, path: string[]): number {
+    let value = obj;
+    for (const key of path) {
+      if (value && typeof value === "object") {
+        value = value[key];
+      } else {
+        return 0;
+      }
+    }
+    return Number(value) || 0;
+  }
+
+  private autoDetectBid(data: any): number {
+    if (data.data?.b?.[0]?.[0]) return Number(data.data.b[0][0]);
+    if (data.data?.bids?.[0]?.[0]) return Number(data.data.bids[0][0]);
+    if (data.data?.[0]?.bids?.[0]?.[0]) return Number(data.data[0].bids[0][0]);
+    if (data.result?.[0]?.bids?.[0]?.[0])
+      return Number(data.result[0].bids[0][0]);
+    return 0;
+  }
+
+  private autoDetectAsk(data: any): number {
+    if (data.data?.a?.[0]?.[0]) return Number(data.data.a[0][0]);
+    if (data.data?.asks?.[0]?.[0]) return Number(data.data.asks[0][0]);
+    if (data.data?.[0]?.asks?.[0]?.[0]) return Number(data.data[0].asks[0][0]);
+    if (data.result?.[0]?.asks?.[0]?.[0])
+      return Number(data.result[0].asks[0][0]);
+    return 0;
+  }
+
   private sendPing(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    const pingMessage = this.config.connection.pingFormat.request;
-
-    if (typeof pingMessage === "string") {
-      this.ws.send(pingMessage);
-    } else {
-      // ЗАМЕНА timestamp
-      const message = { ...pingMessage };
-      if (message.time === "timestamp") {
-        message.time = Math.floor(Date.now() / 1000);
-      }
-      this.ws.send(JSON.stringify(message));
-    }
+    const ping = this.processTimestamp(
+      this.config.connection.pingFormat.request
+    );
+    this.ws.send(typeof ping === "string" ? ping : JSON.stringify(ping));
 
     this.lastPingTime = Date.now();
-    console.log(`📤 ${this.config.name} - PING ОТПРАВЛЕН`);
 
-    // ТАЙМАУТ 5 СЕКУНД
     setTimeout(() => {
       if (this.lastPingTime > 0) {
-        console.log(`⏰ ${this.config.name} - PONG ТАЙМАУТ`);
+        console.log(`⏰ ${this.config.name} - ТАЙМАУТ PONG`);
         this.lastPingTime = 0;
       }
     }, 5000);
   }
 
-  /**
-   * 📥 ОБРАБОТКА PONG ОТВЕТА - С ФРАЗОЙ "ОТКЛИК"
-   */
-  private handlePong(data: any): void {
-    const latency = Date.now() - this.lastPingTime;
-    this.latency = latency;
-    this.lastPingTime = 0;
-
-    console.log(`📥 ${this.config.name} PONG! отклик: ${latency}ms`);
-  }
-
-  /**
-   * 📨 ОТПРАВКА ПОДПИСОК - ПРОЩЕ НЕКУДА
-   */
-  private sendSubscriptions(): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-
-    if (this.config.subscribeMessages) {
-      this.config.subscribeMessages.forEach((message: any) => {
-        const processed = this.processMessage(message);
-        this.ws!.send(JSON.stringify(processed));
-        console.log(`📨 ${this.config.name} - ПОДПИСКА ОТПРАВЛЕНА`);
-      });
+  private isPong(data: any): boolean {
+    const pong = this.config.connection.pingFormat.response;
+    if (typeof pong === "string") return data === pong;
+    if (typeof pong === "object") {
+      return Object.keys(pong).every((key) => data[key] === pong[key]);
     }
+    return false;
   }
 
-  /**
-   * 🛠️ ОБРАБОТКА ШАБЛОНОВ СООБЩЕНИЙ
-   */
-  private processMessage(message: any): any {
-    const processed = JSON.parse(JSON.stringify(message));
-
+  private processTimestamp(obj: any): any {
+    if (typeof obj === "string") return obj;
+    const processed = JSON.parse(JSON.stringify(obj));
     for (const key in processed) {
       if (processed[key] === "timestamp") {
         processed[key] = Math.floor(Date.now() / 1000);
       }
     }
-
     return processed;
   }
 
-  /**
-   * 📊 ОБРАБОТКА ДАННЫХ - С ФИЛЬТРАЦИЕЙ СТАКАНА
-   */
-  private handleData(data: any): void {
-    // ОБРАБАТЫВАЕМ ORDERBOOK
-    if (
-      data.channel?.includes("order_book") ||
-      data.topic?.includes("orderbook")
-    ) {
-      this.handleOrderbookWithFilter(data);
-    }
-  }
-
-  /**
-   * 📊 ФИЛЬТРАЦИЯ СТАКАНА - КАЖДЫЕ 20 ОБНОВЛЕНИЙ + BEST BID/ASK
-   */
-  private handleOrderbookWithFilter(data: any): void {
-    this.orderbookUpdateCount++;
-
-    // ПРОПУСКАЕМ КАЖДЫЕ 19 ОБНОВЛЕНИЙ
-    if (this.orderbookUpdateCount % 20 !== 0) {
-      return;
-    }
-
-    // СОХРАНЯЕМ ПОСЛЕДНИЕ ДАННЫЕ
-    this.lastOrderbookData = data;
-
-    // ИЗВЛЕКАЕМ BEST BID/ASK
-    const bestBidAsk = this.extractBestBidAsk(data);
-
-    if (bestBidAsk) {
-      console.log(
-        `📊 ${this.config.name} BEST: BID ${bestBidAsk.bid} | ASK ${bestBidAsk.ask} | спред: ${bestBidAsk.spread}`
-      );
-    }
-  }
-
-  /**
-   * 🎯 ИЗВЛЕЧЕНИЕ BEST BID/ASK ИЗ РАЗНЫХ ФОРМАТОВ БИРЖ
-   */
-  private extractBestBidAsk(
-    data: any
-  ): { bid: number; ask: number; spread: number } | null {
-    try {
-      let bestBid: number = 0;
-      let bestAsk: number = 0;
-
-      // BYBIT ФОРМАТ
-      if (data.type === "snapshot" && data.data) {
-        const bids = data.data.b || data.data.bids || [];
-        const asks = data.data.a || data.data.asks || [];
-
-        if (bids.length > 0) bestBid = parseFloat(bids[0][0]);
-        if (asks.length > 0) bestAsk = parseFloat(asks[0][0]);
-      }
-      // GATE.IO ФОРМАТ
-      else if (data.result && Array.isArray(data.result)) {
-        const orderbook = data.result[0];
-        if (orderbook && orderbook.bids && orderbook.asks) {
-          if (orderbook.bids.length > 0)
-            bestBid = parseFloat(orderbook.bids[0][0]);
-          if (orderbook.asks.length > 0)
-            bestAsk = parseFloat(orderbook.asks[0][0]);
-        }
-      }
-      // OKX ФОРМАТ
-      else if (data.data && Array.isArray(data.data)) {
-        const orderbook = data.data[0];
-        if (orderbook && orderbook.bids && orderbook.asks) {
-          if (orderbook.bids.length > 0)
-            bestBid = parseFloat(orderbook.bids[0][0]);
-          if (orderbook.asks.length > 0)
-            bestAsk = parseFloat(orderbook.asks[0][0]);
-        }
-      }
-
-      // ПРОВЕРЯЕМ ЧТО ДАННЫЕ ВАЛИДНЫ
-      if (bestBid > 0 && bestAsk > 0 && bestAsk > bestBid) {
-        const spread = bestAsk - bestBid;
-        return { bid: bestBid, ask: bestAsk, spread };
-      }
-    } catch (error) {
-      console.error(
-        `❌ ${this.config.name} - ОШИБКА ИЗВЛЕЧЕНИЯ BID/ASK:`,
-        error
-      );
-    }
-
-    return null;
-  }
-
-  /**
-   * 📈 СТАТИСТИКА - ТЕПЕРЬ С BEST BID/ASK
-   */
-  getStats(): any {
-    let bestInfo = "";
-
-    if (this.lastOrderbookData) {
-      const bestBidAsk = this.extractBestBidAsk(this.lastOrderbookData);
-      if (bestBidAsk) {
-        bestInfo = ` | BID:${bestBidAsk.bid} ASK:${bestBidAsk.ask}`;
-      }
-    }
-
-    return {
-      name: this.config.name,
-      connected: this.isConnected,
-      latency: this.latency,
-      bestInfo: bestInfo,
-    };
-  }
-
-  /**
-   * 📴 ОТКЛЮЧЕНИЕ - ПРОСТО
-   */
   disconnect(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
+    this.ws?.close();
     this.isConnected = false;
     console.log(`🔴 ${this.config.name} - ОТКЛЮЧЕНА`);
   }

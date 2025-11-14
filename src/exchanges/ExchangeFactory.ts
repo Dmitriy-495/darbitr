@@ -1,55 +1,32 @@
 // src/exchanges/ExchangeFactory.ts
 
 /**
- * ⚡ ФАБРИКА БИРЖ - ТЕПЕРЬ С ПОДКЛЮЧЕНИЕМ!
+ * ⚡ ФАБРИКА БИРЖ - ПРОСТО И БЫСТРО
  */
 
 import { BaseExchange } from "./BaseExchange";
 import { ConfigLoader } from "../config/ConfigLoader";
 
 export class ExchangeFactory {
-  /**
-   * 🏗️ СОЗДАЕМ И ПОДКЛЮЧАЕМ БИРЖУ
-   */
-  static async createExchange(exchangeName: string): Promise<BaseExchange> {
-    const config = ConfigLoader.loadExchangeConfig(exchangeName);
+  static async createAll(): Promise<BaseExchange[]> {
+    console.log("🔧 СОЗДАЕМ БИРЖИ...");
 
-    console.log(`🏗️ ${config.name} - СОЗДАНА`);
-    const exchange = new BaseExchange(config);
-
-    // 🔌 НЕМЕДЛЕННО ПОДКЛЮЧАЕМ!
-    await exchange.connect();
-
-    return exchange;
-  }
-
-  /**
-   * 🔧 СОЗДАЕМ И ПОДКЛЮЧАЕМ ВСЕ БИРЖИ
-   */
-  static async createEnabledExchanges(): Promise<BaseExchange[]> {
-    console.log("🔧 СОЗДАЕМ И ПОДКЛЮЧАЕМ БИРЖИ ИЗ enabled/...");
-
-    const enabled = ConfigLoader.getEnabledExchanges();
+    const names = ConfigLoader.getEnabledExchanges();
     const exchanges: BaseExchange[] = [];
 
-    console.log(`📊 НАЙДЕНО: ${enabled.length} БИРЖ`);
-
-    // СОЗДАЕМ И ПОДКЛЮЧАЕМ КАЖДУЮ БИРЖУ
-    for (const name of enabled) {
+    for (const name of names) {
       try {
-        const exchange = await this.createExchange(name);
+        const config = ConfigLoader.loadExchangeConfig(name);
+        const exchange = new BaseExchange(config);
+        await exchange.connect();
         exchanges.push(exchange);
-        console.log(`✅ ${name} - СОЗДАНА И ПОДКЛЮЧЕНА`);
+        console.log(`✅ ${name} - ГОТОВА`);
       } catch (error) {
-        console.error(`❌ ${name} - ОШИБКА ПОДКЛЮЧЕНИЯ:`, error);
+        console.error(`❌ ${name} - ОШИБКА:`, error);
       }
     }
 
-    console.log(`🎯 УСПЕШНО: ${exchanges.length}/${enabled.length}`);
+    console.log(`🎯 ГОТОВО: ${exchanges.length}/${names.length}`);
     return exchanges;
-  }
-
-  static getEnabledExchanges(): string[] {
-    return ConfigLoader.getEnabledExchanges();
   }
 }

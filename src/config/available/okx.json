@@ -9,23 +9,14 @@
       "response": "pong"
     }
   },
-  "connectionConfirmPatterns": [{ "event": "subscribe" }],
   "subscribeMessages": [
     {
       "op": "subscribe",
-      "args": [
-        {
-          "channel": "books",
-          "instId": "BTC-USDT"
-        }
-      ]
+      "args": [{ "channel": "books", "instId": "BTC-USDT" }]
     }
   ],
-  "subscriptions": [
-    {
-      "channel": "orderbook",
-      "match": { "arg": { "channel": "books" } },
-      "action": "handleOrderbook"
-    }
-  ]
+  "bidAskPaths": {
+    "bid": "data.0.bids.0.0",
+    "ask": "data.0.asks.0.0"
+  }
 }

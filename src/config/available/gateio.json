@@ -9,7 +9,6 @@
       "response": { "channel": "futures.pong" }
     }
   },
-  "connectionConfirmPatterns": [{ "channel": "futures.pong" }],
   "subscribeMessages": [
     {
       "time": "timestamp",
@@ -18,11 +17,8 @@
       "payload": ["BTC_USDT", "20", "100ms"]
     }
   ],
-  "subscriptions": [
-    {
-      "channel": "orderbook",
-      "match": { "channel": "futures.order_book" },
-      "action": "handleOrderbook"
-    }
-  ]
+  "bidAskPaths": {
+    "bid": "result.0.bids.0.0",
+    "ask": "result.0.asks.0.0"
+  }
 }

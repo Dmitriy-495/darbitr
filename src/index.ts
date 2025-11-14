@@ -1,88 +1,38 @@
-// src/index.ts
+// src/index.ts - УПРОЩАЕМ ДО МИНИМУМА!
 
 /**
- * ⚡ ГЛАВНЫЙ ЗАПУСК - БЫСТРО И ПРОСТО
- * ДЕВИЗ: "ПРОЩЕ! ЭФФЕКТИВНЕЙ! БЫСТРЕЕ!"
+ * ⚡ ГЛАВНЫЙ ЗАПУСК - БЕЗ ЛИШНЕГО СТАТУСА!
  */
 
 import { ExchangeFactory } from "./exchanges/ExchangeFactory";
-import { BaseExchange } from "./exchanges/BaseExchange";
 
 class DArbitrApp {
-  private exchanges: BaseExchange[] = [];
+  private exchanges: any[] = [];
 
-  /**
-   * 🚀 ЗАПУСК - ЭФФЕКТИВНО
-   */
   async start(): Promise<void> {
     console.log("🎯 DT ARBITR 3.0 - ЗАПУСК!");
-    console.log("⚡ ПРОЩЕ! ЭФФЕКТИВНЕЙ! БЫСТРЕЕ!\n");
+    console.log("⚡ МИНИМАЛЬНЫЕ ЛОГИ! МАКСИМАЛЬНАЯ СКОРОСТЬ!\n");
 
-    try {
-      await this.runTestMode();
-    } catch (error) {
-      console.error("💥 ОШИБКА:", error);
-      process.exit(1);
-    }
-  }
+    this.exchanges = await ExchangeFactory.createAll();
 
-  /**
-   * 🧪 ТЕСТОВЫЙ РЕЖИМ - ПРОСТО
-   */
-  private async runTestMode(): Promise<void> {
-    console.log("🎯 ТЕСТ ПОДКЛЮЧЕНИЯ БИРЖ...");
+    // ⚡ НЕТ ИНТЕРВАЛА СТАТУСА - ВСЁ ВИДНО В PONG!
 
-    this.exchanges = await ExchangeFactory.createEnabledExchanges();
-
-    // МОНИТОРИНГ СТАТУСА
-    const interval = setInterval(() => {
-      this.printStatus();
-    }, 3000);
-
-    // АВТОСТОП ЧЕРЕЗ 60 СЕК
+    // AUTOSTOP ЧЕРЕЗ 30 СЕК
     setTimeout(() => {
-      clearInterval(interval);
       console.log("🎯 ТЕСТ ЗАВЕРШЕН!");
       this.shutdown();
-    }, 60000);
+    }, 30000);
 
-    // CTRL+C
     process.on("SIGINT", () => {
-      clearInterval(interval);
       this.shutdown();
     });
   }
 
-  /**
-   * 📊 ВЫВОД СТАТУСА - С BEST BID/ASK
-   */
-  private printStatus(): void {
-    console.log("\n--- 📊 СТАТУС ПОДКЛЮЧЕНИЯ БИРЖ ---");
-
-    this.exchanges.forEach((exchange, index) => {
-      const stats = exchange.getStats();
-      const status = stats.connected ? "✅" : "🔄";
-      const latency = stats.latency ? `${stats.latency}ms` : "---";
-
-      console.log(
-        `${index + 1}. ${stats.name}: ${status} ${latency}${stats.bestInfo}`
-      );
-    });
-
-    console.log("----------------------------------");
-  }
-
-  /**
-   * 📴 ВЫКЛЮЧЕНИЕ - БЫСТРО
-   */
   private shutdown(): void {
-    console.log("📴 ВЫКЛЮЧЕНИЕ...");
     this.exchanges.forEach((ex) => ex.disconnect());
     console.log("🎯 СИСТЕМА ОСТАНОВЛЕНА!");
     process.exit(0);
   }
 }
 
-// 🚀 ЗАПУСКАЕМ!
-const app = new DArbitrApp();
-app.start().catch(console.error);
+new DArbitrApp().start().catch(console.error);
